@@ -1,0 +1,45 @@
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2
+    ports: ["1883:1883"]
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    restart: unless-stopped
+
+  influxdb:
+    image: influxdb:2.7
+    ports: ["8086:8086"]
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: admin
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${INFLUX_PASSWORD:-edgeguard-admin}
+      DOCKER_INFLUXDB_INIT_ORG: edgeguard
+      DOCKER_INFLUXDB_INIT_BUCKET: telemetry
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUX_TOKEN:-edgeguard-dev-token}
+    volumes: [influx-data:/var/lib/influxdb2]
+    restart: unless-stopped
+
+  telegraf:
+    image: telegraf:1.30
+    depends_on: [mosquitto, influxdb]
+    environment:
+      INFLUX_TOKEN: ${INFLUX_TOKEN:-edgeguard-dev-token}
+    volumes:
+      - ./telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:10.4.2
+    depends_on: [influxdb]
+    ports: ["3000:3000"]
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-edgeguard-admin}
+      INFLUX_TOKEN: ${INFLUX_TOKEN:-edgeguard-dev-token}
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    restart: unless-stopped
+
+volumes:
+  influx-data:
+  grafana-data:
